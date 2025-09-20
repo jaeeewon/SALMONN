@@ -116,7 +116,7 @@ class SALMONN(nn.Module):
                 llama_path,
                 torch_dtype=torch.float16,
                 load_in_8bit=True,
-                device_map={"": device_8bit},
+                # device_map={"": device_8bit},
             )
         else:
             self.llama_model = LlamaForCausalLM.from_pretrained(

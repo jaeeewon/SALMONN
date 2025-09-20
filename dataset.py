@@ -15,6 +15,8 @@
 import json
 
 import torch
+import torchaudio
+# import librosa # couldn't resolve `module 'dist_utils' has no attribute 'print'`,,
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 import soundfile as sf
@@ -60,7 +62,21 @@ class SALMONNDataset(Dataset):
     def __getitem__(self, index):
         ann = self.annotation[index]
 
-        audio, sr = sf.read(ann["path"])
+        # audio, sr = sf.read(ann["path"])
+
+        # if sr != 16000:
+            # audio = librosa.resample(audio, orig_sr=sr, target_sr=16000) # i know it is super bad design;;
+            # sr = 16000
+        
+        # torchrun 환경에서 librosa 사용 시 dist_utils 모듈 관련 에러 발생하여 torchaudio로 변경
+
+        audio, sr = torchaudio.load(ann["path"])
+
+        if sr != 16000:
+            audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)(audio)
+            sr = 16000
+        audio = audio.numpy()
+
         if len(audio.shape) == 2: # stereo to mono
             audio = audio[:, 0]
         if "expand_wav" in ann:
