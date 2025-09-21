@@ -3,6 +3,7 @@
 import os
 import json
 import time
+import math
 import datetime
 from pathlib import Path
 import logging
@@ -87,6 +88,9 @@ class Runner:
             warmup_start_lr=self.config.config.run.optims.get("warmup_start_lr", -1),
         )
 
+        # gradient clipping
+        self.grad_clip_norm = self.config.config.run.optims.get("grad_clip_norm", -1)
+
         self.log_config()
 
     def unwrap_dist_model(self, model):
@@ -101,6 +105,7 @@ class Runner:
         metric_logger = MetricLogger(delimiter="  ")
         metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
         metric_logger.add_meter("loss", SmoothedValue(window_size=1, fmt="{value:.4f}"))
+        metric_logger.add_meter("grad_norm", SmoothedValue(window_size=1, fmt="{value:.4f}"))
 
         logging.info(
             "Start training epoch {}, {} iters per inner epoch.".format(
@@ -125,6 +130,32 @@ class Runner:
                 self.scaler.scale(loss).backward()
             else:
                 loss.backward()
+            
+            # start gradient clipping
+            if self.grad_clip_norm > 0:
+                if self.use_amp:
+                    self.scaler.unscale_(self.optimizer)
+
+                # get grad norm before clipping
+                """
+                # 1. calculate grad norm manually
+                total_norm = 0.0
+                for p in self.model.parameters():
+                    if p.grad is not None:
+                        param_norm = p.grad.data.norm(2)
+                        total_norm += param_norm.item() ** 2
+                total_norm = total_norm ** (1. / 2)
+
+                # 2. get grad norm by compare its grad norm and infinity
+                total_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), float('inf')).item()
+                """
+                total_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), float('inf')).item()
+                total_norm = total_norm if not math.isnan(total_norm) else float('inf')
+                metric_logger.update(grad_norm=total_norm)
+                torch.nn.utils.clip_grad_norm_(
+                    self.model.parameters(), self.grad_clip_norm
+                )
+            # end gradient clipping
 
             if (i + 1) % self.config.config.run.accum_grad_iters == 0:
                 if self.use_amp:

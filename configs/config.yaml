@@ -83,3 +83,4 @@ run:
     min_lr: 1e-5
     weight_decay: 0.05
     beta2: 0.999
+    grad_clip_norm: 1.0
