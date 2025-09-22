@@ -105,7 +105,8 @@ class Runner:
         metric_logger = MetricLogger(delimiter="  ")
         metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
         metric_logger.add_meter("loss", SmoothedValue(window_size=1, fmt="{value:.4f}"))
-        metric_logger.add_meter("grad_norm", SmoothedValue(window_size=1, fmt="{value:.4f}"))
+        if self.grad_clip_norm > 0:
+            metric_logger.add_meter("grad_norm", SmoothedValue(window_size=1, fmt="{value:.4f}"))
 
         logging.info(
             "Start training epoch {}, {} iters per inner epoch.".format(
@@ -155,6 +156,8 @@ class Runner:
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(), self.grad_clip_norm
                 )
+            # else:
+            #     metric_logger.update(grad_norm=0.0)
             # end gradient clipping
 
             if (i + 1) % self.config.config.run.accum_grad_iters == 0:
