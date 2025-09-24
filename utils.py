@@ -16,6 +16,7 @@ import logging
 import time
 
 import torch
+import torchaudio
 from torch.utils.data import DataLoader, DistributedSampler
 import soundfile as sf
 import numpy as np
@@ -137,9 +138,16 @@ class IterLoader:
 
 
 def prepare_one_sample(wav_path, wav_processor, cuda_enabled=True):
-    audio, sr = sf.read(wav_path)
+    # audio, sr = sf.read(wav_path)
+    audio, sr = torchaudio.load(wav_path)
+
+    if sr != 16000:
+        audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)(audio)
+        sr = 16000
+    audio = audio.double().numpy() # double() -> float64
+    print(f"audio shape: {audio.shape}, dtype: {audio.dtype}")
     if len(audio.shape) == 2: # stereo to mono
-        audio = audio[:, 0]
+        audio = np.transpose(audio)[:, 0]
     if len(audio) < sr: # pad audio to at least 1s
         sil = np.zeros(sr - len(audio), dtype=float)
         audio = np.concatenate((audio, sil), axis=0)

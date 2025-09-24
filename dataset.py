@@ -78,7 +78,7 @@ class SALMONNDataset(Dataset):
         audio = audio.numpy()
 
         if len(audio.shape) == 2: # stereo to mono
-            audio = audio[:, 0]
+            audio = np.transpose(audio)[:, 0]
         if "expand_wav" in ann:
             for p in ann["expand_wav"]:
                 expand_audio, _ = sf.read(p)
