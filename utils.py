@@ -145,7 +145,6 @@ def prepare_one_sample(wav_path, wav_processor, cuda_enabled=True):
         audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)(audio)
         sr = 16000
     audio = audio.double().numpy() # double() -> float64
-    print(f"audio shape: {audio.shape}, dtype: {audio.dtype}")
     if len(audio.shape) == 2: # stereo to mono
         audio = np.transpose(audio)[:, 0]
     if len(audio) < sr: # pad audio to at least 1s
