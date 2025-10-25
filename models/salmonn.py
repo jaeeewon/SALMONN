@@ -409,7 +409,7 @@ class SALMONN(nn.Module):
 
         return {"loss": loss}
 
-    def generate(self, samples, generate_cfg, prompts=None):
+    def generate(self, samples, generate_cfg, prompts=None, skip_special_tokens=False):
         batch_size = samples["spectrogram"].shape[0]
 
         spectrogram = samples["spectrogram"]
@@ -449,7 +449,7 @@ class SALMONN(nn.Module):
             early_stopping=True
             # no_repeat_ngram_size=3
         )
-        text = self.llama_tokenizer.batch_decode(outputs, add_special_tokens=False)
+        text = self.llama_tokenizer.batch_decode(outputs, add_special_tokens=False, skip_special_tokens=skip_special_tokens)
 
         return text
 
