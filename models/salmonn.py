@@ -446,6 +446,8 @@ class SALMONN(nn.Module):
             repetition_penalty=generate_cfg.get("repetition_penalty", 1.0),
             length_penalty=generate_cfg.get("length_penalty", 1.0),
             attention_mask=attns,
+            early_stopping=True
+            # no_repeat_ngram_size=3
         )
         text = self.llama_tokenizer.batch_decode(outputs, add_special_tokens=False)
 
