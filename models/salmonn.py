@@ -289,7 +289,7 @@ class SALMONN(nn.Module):
 
                 # speech_embeds wrapped with prompts_embeds are padded to the same length here
                 p_after_tokens = self.llama_tokenizer(
-                    p_after, return_tensors="pt", padding="longest", add_special_tokens=False
+                    p_after, return_tensors="pt", add_special_tokens=False
                 ).to(embeds.device)
                 p_after_embeds = self.llama_model.model.embed_tokens(p_after_tokens.input_ids) if not self.lora else self.llama_model.model.model.embed_tokens(p_after_tokens.input_ids)
 
@@ -303,6 +303,13 @@ class SALMONN(nn.Module):
                     p_after_embeds = p_after_embeds.expand(batch_size, -1, -1)
                     p_before_atts = p_before_atts.expand(batch_size, -1)
                     p_after_atts = p_after_atts.expand(batch_size, -1)
+                    """
+                    # .repeat() not resolve issue!
+                    p_before_embeds = p_before_embeds.repeat(batch_size, 1, 1)
+                    p_after_embeds = p_after_embeds.repeat(batch_size, 1, 1)
+                    p_before_atts = p_before_atts.repeat(batch_size, 1)
+                    p_after_atts = p_after_atts.repeat(batch_size, 1)
+                    """
                 # ===== batch_mask =====
 
                 wrapped_embeds = torch.cat([p_before_embeds, embeds, p_after_embeds], dim=1)
@@ -446,7 +453,7 @@ class SALMONN(nn.Module):
             repetition_penalty=generate_cfg.get("repetition_penalty", 1.0),
             length_penalty=generate_cfg.get("length_penalty", 1.0),
             attention_mask=attns,
-            early_stopping=True
+            # early_stopping=True
             # no_repeat_ngram_size=3
         )
         text = self.llama_tokenizer.batch_decode(outputs, add_special_tokens=False, skip_special_tokens=skip_special_tokens)
