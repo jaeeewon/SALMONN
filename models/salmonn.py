@@ -294,26 +294,27 @@ class SALMONN(nn.Module):
                 p_after_embeds = self.llama_model.model.embed_tokens(p_after_tokens.input_ids) if not self.lora else self.llama_model.model.model.embed_tokens(p_after_tokens.input_ids)
 
                 # ===== batch_mask =====
-                batch_size = embeds.shape[0]
-                p_before_atts = p_before_tokens.attention_mask
-                p_after_atts = p_after_tokens.attention_mask
+                # batch_size = embeds.shape[0]
+                # p_before_atts = p_before_tokens.attention_mask
+                # p_after_atts = p_after_tokens.attention_mask
 
-                if p_before_embeds.shape[0] != batch_size and p_before_embeds.shape[0] == 1:
-                    p_before_embeds = p_before_embeds.expand(batch_size, -1, -1)
-                    p_after_embeds = p_after_embeds.expand(batch_size, -1, -1)
-                    p_before_atts = p_before_atts.expand(batch_size, -1)
-                    p_after_atts = p_after_atts.expand(batch_size, -1)
-                    """
-                    # .repeat() not resolve issue!
-                    p_before_embeds = p_before_embeds.repeat(batch_size, 1, 1)
-                    p_after_embeds = p_after_embeds.repeat(batch_size, 1, 1)
-                    p_before_atts = p_before_atts.repeat(batch_size, 1)
-                    p_after_atts = p_after_atts.repeat(batch_size, 1)
-                    """
+                # if p_before_embeds.shape[0] != batch_size and p_before_embeds.shape[0] == 1:
+                #     p_before_embeds = p_before_embeds.expand(batch_size, -1, -1)
+                #     p_after_embeds = p_after_embeds.expand(batch_size, -1, -1)
+                #     p_before_atts = p_before_atts.expand(batch_size, -1)
+                #     p_after_atts = p_after_atts.expand(batch_size, -1)
+                #     """
+                #     # .repeat() not resolve issue!
+                #     p_before_embeds = p_before_embeds.repeat(batch_size, 1, 1)
+                #     p_after_embeds = p_after_embeds.repeat(batch_size, 1, 1)
+                #     p_before_atts = p_before_atts.repeat(batch_size, 1)
+                #     p_after_atts = p_after_atts.repeat(batch_size, 1)
+                #     """
                 # ===== batch_mask =====
 
                 wrapped_embeds = torch.cat([p_before_embeds, embeds, p_after_embeds], dim=1)
-                wrapped_atts = torch.cat([p_before_atts, atts, p_after_atts], dim=1)
+                wrapped_atts = torch.cat([p_before_tokens.attention_mask, atts, p_after_tokens.attention_mask], dim=1)
+                # wrapped_atts = torch.cat([p_before_atts, atts, p_after_atts], dim=1)
             else:
                 batch_size = embeds.shape[0]
                 p_before, p_after = prompt.split("<SpeechHere>")
