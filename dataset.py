@@ -16,6 +16,7 @@ import json
 
 import torch
 import torchaudio
+
 # import librosa # couldn't resolve `module 'dist_utils' has no attribute 'print'`,,
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
@@ -23,14 +24,26 @@ import soundfile as sf
 import numpy as np
 from transformers import WhisperFeatureExtractor
 
+custom_tasks = ["sakura"]
+
 
 class SALMONNDataset(Dataset):
-    def __init__(self, ann_path, whisper_path):
+    def __init__(self, ann_path_or_ann, whisper_path_or_whisper_fe, task=""):
         super().__init__()
 
-        self.annotation = json.load(open(ann_path, "r"))["annotation"]
+        self.annotation = (
+            json.load(open(ann_path_or_ann, "r"))["annotation"]
+            if type(ann_path_or_ann) == str
+            else ann_path_or_ann
+        )
 
-        self.wav_processor = WhisperFeatureExtractor.from_pretrained(whisper_path)
+        self.wav_processor = (
+            WhisperFeatureExtractor.from_pretrained(whisper_path_or_whisper_fe)
+            if type(whisper_path_or_whisper_fe) == str
+            else whisper_path_or_whisper_fe
+        )
+
+        self.task = task
 
     def __len__(self):
         return len(self.annotation)
@@ -42,14 +55,16 @@ class SALMONNDataset(Dataset):
         raw_wav = [torch.from_numpy(s["raw_wav"]) for s in samples]
         raw_wav_length = torch.tensor([len(s["raw_wav"]) for s in samples])
         raw_wav = pad_sequence(raw_wav, batch_first=True, padding_value=0)
-        paddding_mask = torch.arange(raw_wav.size(1)).unsqueeze(0) >= raw_wav_length.unsqueeze(1)
+        paddding_mask = torch.arange(raw_wav.size(1)).unsqueeze(
+            0
+        ) >= raw_wav_length.unsqueeze(1)
 
         text = [s["text"] for s in samples]
         task = [s["task"] for s in samples]
         Q = [s["Q"] for s in samples]
         id = [s["id"] for s in samples]
 
-        return {
+        dta = {
             "spectrogram": cat_spectrogram,
             "raw_wav": raw_wav,
             "padding_mask": paddding_mask,
@@ -59,15 +74,21 @@ class SALMONNDataset(Dataset):
             "id": id,
         }
 
+        if all(t in custom_tasks for t in task):
+            dta["query"] = [s["query"] for s in samples]
+            dta["idx"] = [s["idx"] for s in samples]
+
+        return dta
+
     def __getitem__(self, index):
         ann = self.annotation[index]
 
         # audio, sr = sf.read(ann["path"])
 
         # if sr != 16000:
-            # audio = librosa.resample(audio, orig_sr=sr, target_sr=16000) # i know it is super bad design;;
-            # sr = 16000
-        
+        # audio = librosa.resample(audio, orig_sr=sr, target_sr=16000) # i know it is super bad design;;
+        # sr = 16000
+
         # torchrun 환경에서 librosa 사용 시 dist_utils 모듈 관련 에러 발생하여 torchaudio로 변경
 
         audio, sr = torchaudio.load(ann["path"])
@@ -75,9 +96,9 @@ class SALMONNDataset(Dataset):
         if sr != 16000:
             audio = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)(audio)
             sr = 16000
-        audio = audio.numpy()
+        audio = audio.double().numpy()
 
-        if len(audio.shape) == 2: # stereo to mono
+        if len(audio.shape) == 2:  # stereo to mono
             audio = np.transpose(audio)[:, 0]
         if "expand_wav" in ann:
             for p in ann["expand_wav"]:
@@ -86,17 +107,19 @@ class SALMONNDataset(Dataset):
                     expand_audio = expand_audio[:, 0]
                 sil = np.zeros(1600, dtype=float)
                 audio = np.concatenate((audio, sil, expand_audio), axis=0)
-        if len(audio) < sr: # pad audio to at least 1s
+        if len(audio) < sr:  # pad audio to at least 1s
             sil = np.zeros(sr - len(audio), dtype=float)
             audio = np.concatenate((audio, sil), axis=0)
-        audio = audio[: sr * 30] # truncate audio to at most 30s
+        audio = audio[: sr * 30]  # truncate audio to at most 30s
 
-        spectrogram = self.wav_processor(audio, sampling_rate=sr, return_tensors="pt")["input_features"].squeeze()
+        spectrogram = self.wav_processor(audio, sampling_rate=sr, return_tensors="pt")[
+            "input_features"
+        ].squeeze()
         text = ann["text"]
         task = ann.get("task", "asr")
         Q = ann.get("Q", "")
 
-        return {
+        dta = {
             "spectrogram": spectrogram,
             "raw_wav": audio,
             "text": text,
@@ -104,3 +127,9 @@ class SALMONNDataset(Dataset):
             "Q": Q,
             "id": ann["path"],
         }
+
+        if task in custom_tasks:
+            dta["query"] = ann["query"]
+            dta["idx"] = ann["id"]
+
+        return dta
