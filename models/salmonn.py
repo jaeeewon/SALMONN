@@ -107,7 +107,9 @@ class SALMONN(nn.Module):
 
         logging.info('Loading LLaMA Tokenizer')
         self.llama_tokenizer = LlamaTokenizer.from_pretrained(llama_path, use_fast=False)
-        self.llama_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        # self.llama_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.llama_tokenizer.pad_token = self.llama_tokenizer.unk_token
+        # no matter what the pad_token is; attention_mask
         self.llama_tokenizer.padding_side = "left"
 
         logging.info('Loading LLaMA Model')
