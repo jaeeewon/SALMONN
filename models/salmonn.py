@@ -234,18 +234,22 @@ class SALMONN(nn.Module):
                     audio_embeds = self.ln_audio(audio_embeds)
                     if debug:
                         print("aft linear audio_embeds:", audio_embeds.shape)
-                    if audio_embeds.size(1) < speech_embeds.size(1):
-                        if debug:
-                            print("bef pad audio_embeds:", audio_embeds.shape)
-                        audio_embeds = F.pad(audio_embeds, (0, 0, 0, speech_embeds.size(1) - audio_embeds.size(1)))
-                        if debug:
-                            print("aft pad audio_embeds:", audio_embeds.shape)
-                    elif audio_embeds.size(1) > speech_embeds.size(1):
-                        if debug:
-                            print("pad speech_embeds:", speech_embeds.shape)
-                        speech_embeds = F.pad(speech_embeds, (0, 0, 0, audio_embeds.size(1) - speech_embeds.size(1)))
-                        if debug:
-                            print("aft pad speech_embeds:", speech_embeds.shape)
+                    # if audio_embeds.size(1) < speech_embeds.size(1):
+                    #     if debug:
+                    #         print("bef pad audio_embeds:", audio_embeds.shape)
+                    #     audio_embeds = F.pad(audio_embeds, (0, 0, 0, speech_embeds.size(1) - audio_embeds.size(1)))
+                    #     if debug:
+                    #         print("aft pad audio_embeds:", audio_embeds.shape)
+                    # elif audio_embeds.size(1) > speech_embeds.size(1):
+                    #     if debug:
+                    #         print("pad speech_embeds:", speech_embeds.shape)
+                    #     speech_embeds = F.pad(speech_embeds, (0, 0, 0, audio_embeds.size(1) - speech_embeds.size(1)))
+                    #     if debug:
+                    #         print("aft pad speech_embeds:", speech_embeds.shape)
+
+                    speech_embeds = speech_embeds[:, :audio_embeds.size(1), :]
+                    # test for only existing tokens
+
                     if debug:
                         print("bef cat speech_embeds and audio_embeds", speech_embeds.shape, audio_embeds.shape)
                     speech_embeds = torch.cat((speech_embeds, audio_embeds), dim=-1)
