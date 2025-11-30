@@ -16,6 +16,7 @@ import logging
 import json
 import contextlib
 import random
+import os
 
 import torch
 import torch.nn as nn
@@ -219,17 +220,41 @@ class SALMONN(nn.Module):
             print("Loading training prompts done!")
 
     def _encode_auditory_feature(self, speech_embeds, audio_embeds=None):
+        debug = os.environ.get("SALMONN_DEBUG", "0") == "1"
         with self.maybe_autocast():
             if self.use_speech_Qformer:
+                if debug:
+                    print("bef linear speech_embeds:", speech_embeds.shape)
                 speech_embeds = self.ln_speech(speech_embeds)
+                if debug:
+                    print("aft linear speech_embeds:", speech_embeds.shape)
                 if audio_embeds is not None:
+                    if debug:
+                        print("bef linear audio_embeds:", audio_embeds.shape)
                     audio_embeds = self.ln_audio(audio_embeds)
+                    if debug:
+                        print("aft linear audio_embeds:", audio_embeds.shape)
                     if audio_embeds.size(1) < speech_embeds.size(1):
+                        if debug:
+                            print("bef pad audio_embeds:", audio_embeds.shape)
                         audio_embeds = F.pad(audio_embeds, (0, 0, 0, speech_embeds.size(1) - audio_embeds.size(1)))
+                        if debug:
+                            print("aft pad audio_embeds:", audio_embeds.shape)
                     elif audio_embeds.size(1) > speech_embeds.size(1):
+                        if debug:
+                            print("pad speech_embeds:", speech_embeds.shape)
                         speech_embeds = F.pad(speech_embeds, (0, 0, 0, audio_embeds.size(1) - speech_embeds.size(1)))
+                        if debug:
+                            print("aft pad speech_embeds:", speech_embeds.shape)
+                    if debug:
+                        print("bef cat speech_embeds and audio_embeds", speech_embeds.shape, audio_embeds.shape)
                     speech_embeds = torch.cat((speech_embeds, audio_embeds), dim=-1)
+                    if debug:
+                        print("aft cat speech_embeds:", speech_embeds.shape)
+
                 speech_atts = torch.ones(speech_embeds.size()[:-1], dtype=torch.long).to(speech_embeds.device)
+                if debug:
+                    print(f"bef unfold speech_atts {speech_atts.shape}")
 
                 if self.window_level_Qformer:
                     B, T, C = speech_embeds.shape
@@ -237,26 +262,47 @@ class SALMONN(nn.Module):
                     stride = round(1500 * self.second_stride / 30.0)
                     kernel = (1, kernel)
                     stride = (1, stride)
+                    if debug:
+                        print("kernel:", kernel)
+                    if debug:
+                        print("stride:", stride)
                     speech_embeds_tr = speech_embeds.transpose(1, 2).unsqueeze(2)
+                    if debug:
+                        print("speech_embeds_tr:", speech_embeds_tr.shape)
                     speech_embeds_overlap = F.unfold(speech_embeds_tr, kernel_size=kernel, dilation=1, padding=0, stride=stride)
+                    if debug:
+                        print("speech_embeds_overlap:", speech_embeds_overlap.shape)
                     _, _, L = speech_embeds_overlap.shape
                     speech_embeds_overlap = speech_embeds_overlap.view(B, -1, kernel[1], L)
+                    if debug:
+                        print("viewed speech_embeds_overlap:", speech_embeds_overlap.shape)
                     speech_embeds_overlap = torch.permute(speech_embeds_overlap, [0, 3, 2, 1])
+                    if debug:
+                        print("permuted speech_embeds_overlap:", speech_embeds_overlap.shape)
                     speech_embeds = speech_embeds_overlap.reshape(-1, kernel[1], C)
+                    if debug:
+                        print("reshaped speech_embeds:", speech_embeds.shape)
                     speech_atts = torch.ones(speech_embeds.size()[:-1], dtype=torch.long, device=speech_embeds.device)
 
                 query_tokens = self.speech_query_tokens.expand(speech_embeds.shape[0], -1, -1)
+                if debug:
+                    print(f"query_tokens:", query_tokens.shape)
                 query_output = self.speech_Qformer.bert(
                     query_embeds=query_tokens,
                     encoder_hidden_states=speech_embeds,
                     encoder_attention_mask=speech_atts,
                     return_dict=True,
                 )
+                if debug:
+                    print(f"query_output:", query_output.last_hidden_state.shape)
                 speech_embeds = self.speech_llama_proj(query_output.last_hidden_state)
+                if debug:
+                    print("projected speech_embeds:", speech_embeds.shape)
 
                 if self.window_level_Qformer:
                     speech_embeds = speech_embeds.view(B, -1, speech_embeds.size(2)).contiguous()
-
+                    if debug:
+                        print("viewed speech_embeds:", speech_embeds.shape)
                 speech_atts = torch.ones(speech_embeds.size()[:-1], dtype=torch.long).to(speech_embeds.device)
             else:
                 raise NotImplementedError
