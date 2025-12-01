@@ -196,6 +196,18 @@ class LlamaAttention(nn.Module):
 
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
 
+        # ===== bias =====
+        # start = 8
+        # end = 96
+        # attn_bias = float("-inf")
+        # if start < kv_seq_len:
+        #     s = start
+        #     e = min(end, kv_seq_len)
+        #     # shape: (..., q_len, kv_seq_len)
+        #     attn_weights[..., s:e] = attn_weights[..., s:e] + attn_bias
+        #     # attn_weights[..., s:e] *= 2
+        # ===== bias =====
+
         if attn_weights.size() != (bsz, self.num_heads, q_len, kv_seq_len):
             raise ValueError(
                 f"Attention weights should be of size {(bsz * self.num_heads, q_len, kv_seq_len)}, but is"
